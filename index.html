@@ -12,6 +12,7 @@
 
 
 
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Outfit:wght@400;600&display=swap">
@@ -146,6 +147,23 @@ summary{cursor:pointer;font:600 14px var(--body);color:var(--amber)}
 .gb:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
 #fps{position:fixed;left:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 4px);z-index:40;font:11px ui-monospace,Menlo,Consolas,monospace;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:6px;pointer-events:none}
 .fine{margin-top:12px;font-size:12px;line-height:1.35;color:var(--muted)}
+@media (max-height:400px) and (orientation:landscape){
+  #map{width:84px;height:84px}
+  .ib{width:36px;height:36px}.ib svg{width:17px;height:17px}
+  #rightbox{top:calc(env(safe-area-inset-top,0px) + 8px);gap:6px}
+  #tally{min-width:150px;padding:7px 11px;gap:4px;top:calc(env(safe-area-inset-top,0px) + 8px)}
+  #score{font-size:18px}.lbl{font-size:10px}
+  #compass{top:calc(env(safe-area-inset-top,0px) + 8px);padding:6px 12px}
+  #bossbar{top:calc(env(safe-area-inset-top,0px) + 56px)}
+  #btnJump{right:calc(max(16px,env(safe-area-inset-right,0px)) + 4px);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);width:78px;height:78px}
+  #btnPulse{right:calc(max(16px,env(safe-area-inset-right,0px)) + 96px);bottom:calc(env(safe-area-inset-bottom,0px) + 20px);width:62px;height:62px}
+  #btnFire{right:calc(max(16px,env(safe-area-inset-right,0px)) + 96px);bottom:calc(env(safe-area-inset-bottom,0px) + 90px);width:68px;height:68px}
+  #btnDash{right:calc(max(16px,env(safe-area-inset-right,0px)) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 104px);width:54px;height:54px}
+  #dialog{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);width:clamp(240px,42vw,400px);padding:8px 12px}
+  #dialog p{font-size:14px}
+}
+.rot{display:none}
+@media (orientation:portrait){.rot{display:block;margin-top:12px;font-size:14px;color:var(--amber)}}
 #diag{position:fixed;left:8px;bottom:8px;z-index:50;max-width:min(92vw,560px);margin:0;padding:8px 10px;border-radius:8px;background:rgba(130,12,12,.88);color:#fff;font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;pointer-events:none}
 @media (prefers-reduced-motion:reduce){#toast.show{animation-duration:.01s}}
 </style>
@@ -1235,13 +1253,20 @@ const panel=$('panel'),LS='shardfall.best2';
 function getBest(){try{return parseFloat(localStorage.getItem(LS))||0;}catch(e){return 0;}}
 function setBest(v){try{localStorage.setItem(LS,String(v));}catch(e){}}
 function helpHTML(){return '<ul class="help"><li><b>Left thumb</b><span>Walk</span></li><li><b>Right thumb</b><span>Look around</span></li><li><b>Fire</b><span>Hold the target button. Shoots where the ring points and locks on to Hollows near it</span></li><li><b>Lantern</b><span>Pushes back and hurts everything near you</span></li><li><b>Sense</b><span>Tap the top compass (or E). The arrow points to the nearest shard for a few seconds. Recharges slowly</span></li><li><b>Jump</b><span>Tap again in the air for a double jump</span></li><li><b>Dash</b><span>Quick burst. You cannot be hit while dashing</span></li></ul><p class="kbd">Computer: WASD or arrows, Space jump, Shift dash, F lantern, K fire, drag the mouse to look, P pause.</p>';}
+function tryLandscape(){
+  try{
+    const lock=()=>{try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}};
+    const el=document.documentElement;
+    if(coarse&&!document.fullscreenElement&&el.requestFullscreen){el.requestFullscreen({navigationUI:'hide'}).then(lock).catch(lock);}else lock();
+  }catch(e){}
+}
 function showScreen(kind,x){
   const best=getBest();let h='';
-  if(kind==='start')h='<h1 class="title">Shardfall <span>Isle</span></h1><div class="story"><p>The star that watched over this island fell the night you were born. It broke into shards, and where the shards were torn away, the dark moved in.</p><p>You wake at the summit, in the light of its last piece. Gather the shards. Keep the Heart burning through every night.</p></div><div class="row"><button class="cta" id="ovGo" type="button">Wake up</button></div>'+gfxHTML()+'<details><summary>Controls</summary>'+helpHTML()+'</details>'+(best?'<p class="best">Best score '+fnum(best)+'</p>':'')+'<p class="fine">No account, no ads. Your best score and settings stay on this phone.</p>';
+  if(kind==='start')h='<h1 class="title">Shardfall <span>Isle</span></h1><div class="story"><p>The star that watched over this island fell the night you were born. It broke into shards, and where the shards were torn away, the dark moved in.</p><p>You wake at the summit, in the light of its last piece. Gather the shards. Keep the Heart burning through every night.</p></div><div class="row"><button class="cta" id="ovGo" type="button">Wake up</button></div>'+gfxHTML()+'<details><summary>Controls</summary>'+helpHTML()+'</details>'+(best?'<p class="best">Best score '+fnum(best)+'</p>':'')+'<p class="fine">No account, no ads. Your best score and settings stay on this phone.</p><p class="rot">Best played sideways. Turn your phone.</p>';
   else if(kind==='pause')h='<h1 class="title">Paused</h1><p class="lede">Score '+fnum(G.score)+'. Night '+Math.max(1,G.night)+'. Explored '+explPct()+'%.</p>'+helpHTML()+'<div class="row"><button class="cta" id="ovGo" type="button">Resume</button><button class="cta ghost" id="ovRestart" type="button">Start over</button></div>'+gfxHTML();
   else h='<h1 class="title">The light <span>went out</span></h1><div class="quote">'+DEATH_LINES[(Math.random()*DEATH_LINES.length)|0]+'<small>LUMEN</small></div><ul class="stats"><li><span>Score</span><b>'+fnum(G.score)+'</b></li><li><span>'+(x&&x.nb?'New best':'Best')+'</span><b>'+fnum(Math.max(best,G.score))+'</b></li><li><span>Nights</span><b>'+(G.survived||0)+'</b></li><li><span>Hollows</span><b>'+G.kills+'</b></li><li><span>Shards</span><b>'+G.crystals+'</b></li><li><span>Explored</span><b>'+explPct()+'%</b></li></ul><div class="row"><button class="cta" id="ovGo" type="button">Try again</button></div>';
   panel.innerHTML=h;$('screen').hidden=false;wireGfx();
-  const go=$('ovGo');go.onclick=()=>{audioStart();if(kind==='pause')resumeGame();else startGame();};go.focus({preventScroll:true});
+  const go=$('ovGo');go.onclick=()=>{audioStart();tryLandscape();if(kind==='pause')resumeGame();else startGame();};go.focus({preventScroll:true});
   const rs=$('ovRestart');if(rs)rs.onclick=()=>startGame();
 }
 function setPlayUI(on){['tally','compass','rightbox','btnDash','btnJump','btnPulse','btnFire','stickBase'].forEach(id=>{$(id).hidden=!on;});if(!on){$('bossbar').hidden=true;}}

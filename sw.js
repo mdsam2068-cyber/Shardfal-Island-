@@ -1,5 +1,5 @@
 /* Shardfall Isle offline cache. Bump VERSION when you upload a new game file. */
-const VERSION='shardfall-v5-1';
+const VERSION='shardfall-v5-2';
 const CORE=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable-512.png'];
 const EXTRA=['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'];
 self.addEventListener('install',e=>{
