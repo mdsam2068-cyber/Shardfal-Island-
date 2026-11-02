@@ -1,0 +1,113 @@
+name: Build Android APK
+on:
+  push:
+    paths:
+      - 'index.html'
+      - '.github/workflows/apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install Capacitor, three.js and fonts
+        run: |
+          npm init -y
+          npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 three@0.128.0 @fontsource/unbounded @fontsource/outfit
+      - name: Prepare the game files (everything inside the app, works offline)
+        run: |
+          mkdir -p www/fonts
+          cp index.html www/index.html
+          cp node_modules/three/build/three.min.js www/three.min.js
+          cp icon-*.png manifest.webmanifest www/ || true
+          python3 - <<'PY'
+          import glob, re, shutil
+          h = open('www/index.html', encoding='utf8').read()
+          assert 'cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js' in h, 'three tag not found'
+          h = h.replace('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', 'three.min.js')
+          h = re.sub(r'<link rel="preconnect"[^>]*>\s*', '', h)
+          h = re.sub(r'<link rel="stylesheet" href="https://fonts.googleapis.com[^>]*>', '<link rel="stylesheet" href="fonts.css">', h)
+          h = re.sub(r'<script>\s*if\(.serviceWorker. in navigator\).*?</script>', '', h, flags=re.S)
+          wake = "<script>(function(){var l=null;function w(){try{if(navigator.wakeLock&&!l)navigator.wakeLock.request('screen').then(function(x){l=x;x.addEventListener('release',function(){l=null;});}).catch(function(){});}catch(e){}}document.addEventListener('pointerdown',w);document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')w();});})();</script>\n</body>"
+          h = h.replace('</body>', wake, 1)
+          open('www/index.html', 'w', encoding='utf8').write(h)
+          css = ''
+          for fam, pkg, ws in (('Unbounded', 'unbounded', (500, 700)), ('Outfit', 'outfit', (400, 600))):
+              for w in ws:
+                  src = glob.glob('node_modules/@fontsource/%s/files/%s-latin-%d-normal.woff2' % (pkg, pkg, w))
+                  if not src:
+                      print('font missing', fam, w)
+                      continue
+                  shutil.copy(src[0], 'www/fonts/%s-%d.woff2' % (pkg, w))
+                  css += "@font-face{font-family:'%s';font-weight:%d;font-style:normal;font-display:swap;src:url(fonts/%s-%d.woff2) format('woff2');}\n" % (fam, w, pkg, w)
+          open('www/fonts.css', 'w').write(css)
+          print(css)
+          print('external links left:', re.findall(r'(?:src|href)="(https?://[^"]+)"', h))
+          PY
+      - name: Create the Android project
+        run: |
+          cat > capacitor.config.json <<'JSON'
+          {"appId":"com.shardfall.isle","appName":"Shardfall Isle","webDir":"www","android":{"backgroundColor":"#0d1426"}}
+          JSON
+          npx cap add android
+          npx cap sync android
+      - name: Landscape, fullscreen, keep screen on, icon
+        run: |
+          sed -i 's/android:launchMode="singleTask"/android:launchMode="singleTask" android:screenOrientation="sensorLandscape"/' android/app/src/main/AndroidManifest.xml
+          grep -n screenOrientation android/app/src/main/AndroidManifest.xml
+          cat > android/app/src/main/java/com/shardfall/isle/MainActivity.java <<'JAVA'
+          package com.shardfall.isle;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.WindowManager;
+          import com.getcapacitor.BridgeActivity;
+          public class MainActivity extends BridgeActivity {
+            @Override public void onCreate(Bundle b) {
+              super.onCreate(b);
+              getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+              hideBars();
+            }
+            @Override public void onWindowFocusChanged(boolean f) {
+              super.onWindowFocusChanged(f);
+              if (f) hideBars();
+            }
+            private void hideBars() {
+              getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+            }
+          }
+          JAVA
+          R=android/app/src/main/res
+          for spec in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
+            d=${spec%%:*}; rest=${spec#*:}; s=${rest%%:*}; f=${rest#*:}
+            convert icon-512.png -resize ${s}x${s} $R/mipmap-$d/ic_launcher.png
+            convert icon-512.png -resize ${s}x${s} $R/mipmap-$d/ic_launcher_round.png
+            convert icon-maskable-512.png -resize ${f}x${f} $R/mipmap-$d/ic_launcher_foreground.png
+          done
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="ic_launcher_background">#0D1426</color>\n</resources>\n' > $R/values/ic_launcher_background.xml
+      - name: Use the same signing key every build (so updates install over the old app)
+        run: |
+          mkdir -p ~/.android
+          echo "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" | base64 -d > ~/.android/debug.keystore
+      - name: Build the APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../shardfall-isle.apk
+      - name: Publish the APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk
+          name: Shardfall Isle APK (latest)
+          body: Download shardfall-isle.apk below and install it on your phone.
+          files: shardfall-isle.apk
+          make_latest: true
